@@ -1,0 +1,66 @@
+program: scripts/yolo_sweep.py
+method: bayes
+metric:
+  goal: maximize
+  name: metrics/mAP50(M)
+parameters:
+  # Model size
+  model:
+    values: ["yolo11n-seg.pt", "yolo11s-seg.pt", "yolo11m-seg.pt"]
+
+  # Learning rate
+  lr0:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-2
+
+  # Batch size
+  batch:
+    values: [4, 8, 16]
+
+  # Top 5 augmentation parameters for aerial imagery
+
+  # HSV augmentations (important for varying lighting conditions)
+  hsv_h:
+    distribution: uniform
+    min: 0.0
+    max: 0.1
+
+  hsv_s:
+    distribution: uniform
+    min: 0.3
+    max: 1.0
+
+  hsv_v:
+    distribution: uniform
+    min: 0.3
+    max: 1.0
+
+  # Spatial augmentations
+  scale:
+    distribution: uniform
+    min: 0.1
+    max: 0.9
+
+  translate:
+    distribution: uniform
+    min: 0.0
+    max: 0.3
+
+  # Momentum
+  momentum:
+    distribution: uniform
+    min: 0.8
+    max: 0.99
+
+  # Weight decay
+  weight_decay:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-2
+
+  # Mosaic probability (important for object detection)
+  mosaic:
+    distribution: uniform
+    min: 0.0
+    max: 1.0

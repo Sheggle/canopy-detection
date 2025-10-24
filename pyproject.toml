@@ -1,0 +1,14 @@
+[project]
+name = "canopy-detection"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "ultralytics>=8.0.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "pillow>=9.0.0",
+    "opencv-python>=4.8.0",
+    "wandb>=0.15.0",
+]
