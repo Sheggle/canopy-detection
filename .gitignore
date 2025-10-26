@@ -1,3 +1,5 @@
+segmented_images/
+wandb/
 cv_*/
 data/
 yolo_dataset/

@@ -11,4 +11,6 @@ dependencies = [
     "pillow>=9.0.0",
     "opencv-python>=4.8.0",
     "wandb>=0.15.0",
+    "shapely>=2.0.0",
+    "rtree>=1.0.0",
 ]

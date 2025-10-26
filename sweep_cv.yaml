@@ -1,14 +1,16 @@
 program: scripts/yolo_sweep_cv.py
 method: bayes
+project: canopy-detection
 metric:
   goal: maximize
-  name: metrics/mAP50(M)
+  name: custom_evaluation_score
 parameters:
-  epochs: 1
-  imgsz: 256
-  # Cross-validation folds
+  epochs:
+    value: 30
+  imgsz:
+    value: 640
   n_folds:
-    values: [3, 5]
+    value: 3
 
   # Model size
   model:

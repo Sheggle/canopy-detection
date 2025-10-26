@@ -11,7 +11,8 @@ import json
 import subprocess
 from pathlib import Path
 from ultralytics import YOLO
-import numpy as np
+import torch
+import time
 
 
 def create_cv_dataset_if_needed(n_folds: int) -> Path:
@@ -40,12 +41,12 @@ def create_cv_dataset_if_needed(n_folds: int) -> Path:
     return cv_dir
 
 
-def train_fold(fold_idx: int, cv_dir: Path, config) -> tuple:
+def train_fold(fold_idx: int, cv_dir: Path, config, experiment_dir: Path) -> Path:
     """
     Train a model on a specific fold.
 
     Returns:
-        Tuple of (model_path, metrics)
+        Path to the best model
     """
     fold_dir = cv_dir / f"fold_{fold_idx}"
     data_yaml = fold_dir / "data.yaml"
@@ -55,15 +56,21 @@ def train_fold(fold_idx: int, cv_dir: Path, config) -> tuple:
     # Load YOLO model from config
     model = YOLO(config.model)
 
+    device = 'cpu'
+    if torch.backends.mps.is_available():
+        device = 'mps'
+    elif torch.cuda.is_available():
+        device = 'cuda'
+
     # Train the model
     results = model.train(
         data=str(data_yaml),
         epochs=config.epochs,
         imgsz=config.imgsz,
-        device='cuda',
+        device=device,
         optimizer='AdamW',
-        project=f'canopy_cv_sweep_fold_{fold_idx}',
-        name=f'sweep_{wandb.run.id}',
+        project=str(experiment_dir / f'fold_{fold_idx}'),
+        name='run',
 
         # Hyperparameters from wandb config
         batch=config.batch,
@@ -93,23 +100,11 @@ def train_fold(fold_idx: int, cv_dir: Path, config) -> tuple:
 
     # Get best model path
     save_dir = results.save_dir
-    best_model_path = save_dir / 'weights' / 'best.pt'
+    best_model_path = save_dir / 'weights' / 'last.pt'
 
-    # Validate the model
-    best_model = YOLO(best_model_path)
-    val_results = best_model.val(
-        data=str(data_yaml),
-        imgsz=config.imgsz,
-        device='cuda',
-        split='val',
-        iou=0.7,
-        conf=0.001,
-    )
+    print(f"✅ Fold {fold_idx} completed - Model saved at: {best_model_path}")
 
-    metrics = val_results.results_dict
-    print(f"✅ Fold {fold_idx} completed - mAP50(M): {metrics.get('metrics/mAP50(M)', 0):.4f}")
-
-    return best_model_path, metrics
+    return best_model_path
 
 
 def run_inference_on_fold_val(model_path: Path, fold_idx: int, cv_dir: Path, all_images: list) -> dict:
@@ -177,6 +172,42 @@ def run_inference_on_fold_val(model_path: Path, fold_idx: int, cv_dir: Path, all
     return predictions
 
 
+def run_custom_evaluation(submission_path: Path) -> float:
+    """
+    Run the custom evaluation script on the combined submission.
+
+    Args:
+        submission_path: Path to the submission.json file
+
+    Returns:
+        Custom evaluation score (0.0 if evaluation fails)
+    """
+    try:
+        start = time.time()
+        result = subprocess.run([
+            'uv', 'run', 'scripts/evaluate_v4.py',
+            '--gt_json', 'data/train_annotations.json',
+            '--pred_json', str(submission_path)
+        ], capture_output=True, text=True)
+        end = time.time()
+        print(f"Evaluation took {end - start:.2f} seconds")
+
+        if result.returncode == 0:
+            score = float(result.stdout.strip())
+            print(f"🎯 Custom evaluation score: {score:.6f}")
+            return score
+        else:
+            print(f"❌ Evaluation script failed: {result.stderr}")
+            return 0.0
+
+    except subprocess.TimeoutExpired:
+        print("❌ Evaluation script timed out")
+        return 0.0
+    except Exception as e:
+        print(f"❌ Error running evaluation: {e}")
+        return 0.0
+
+
 def combine_fold_predictions(fold_predictions: list, all_images: list) -> dict:
     """
     Combine predictions from all folds into a complete submission covering all training images.
@@ -221,6 +252,11 @@ def train_with_wandb_cv():
 
     print(f"🚀 Starting {n_folds}-fold cross-validation sweep...")
 
+    # Create experiment directory
+    experiment_dir = Path("experiments") / f"cv_sweep_{wandb.run.id}"
+    experiment_dir.mkdir(parents=True, exist_ok=True)
+    print(f"📁 Experiment directory: {experiment_dir}")
+
     # Load original training data
     with open("data/train_annotations.json") as f:
         train_data = json.load(f)
@@ -229,15 +265,13 @@ def train_with_wandb_cv():
     # Create CV dataset if needed
     cv_dir = create_cv_dataset_if_needed(n_folds)
 
-    # Store metrics from all folds
-    all_fold_metrics = []
+    # Store fold predictions
     fold_predictions = []
 
     # Train on each fold
     for fold_idx in range(n_folds):
         try:
-            model_path, metrics = train_fold(fold_idx, cv_dir, config)
-            all_fold_metrics.append(metrics)
+            model_path = train_fold(fold_idx, cv_dir, config, experiment_dir)
 
             # Run inference on this fold's validation set
             print(f"🔍 Running inference on fold {fold_idx} validation set...")
@@ -249,7 +283,7 @@ def train_with_wandb_cv():
             # Continue with other folds
             continue
 
-    if not all_fold_metrics:
+    if not fold_predictions:
         print("❌ All folds failed!")
         wandb.finish()
         return
@@ -258,16 +292,22 @@ def train_with_wandb_cv():
     print("🔄 Combining predictions from all folds...")
     combined_submission = combine_fold_predictions(fold_predictions, all_images)
 
-    # Save submission
-    submission_path = f"submission_cv_{wandb.run.id}.json"
+    # Save submission in experiment directory
+    submission_path = experiment_dir / "submission.json"
     with open(submission_path, "w") as f:
         json.dump(combined_submission, f, indent=2)
 
     print(f"✅ Cross-validation completed!")
     print(f"📁 Combined submission saved: {submission_path}")
+    print(f"📂 Full experiment at: {experiment_dir}")
 
-    # Log the main metric for optimization
-    wandb.log({"metrics/mAP50(M)": avg_metrics.get('cv_avg_metrics/mAP50(M)', 0)})
+    # Run custom evaluation on combined submission
+    print("🔄 Running custom evaluation on combined submission...")
+    custom_score = run_custom_evaluation(submission_path)
+
+    # Log the custom evaluation score for optimization
+    wandb.log({"custom_evaluation_score": custom_score})
+    print(f"📊 Final custom evaluation score: {custom_score:.6f}")
 
     # Finish wandb run
     wandb.finish()
