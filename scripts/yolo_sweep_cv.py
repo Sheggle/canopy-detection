@@ -278,6 +278,21 @@ def train_with_wandb_cv():
             predictions = run_inference_on_fold_val(model_path, fold_idx, cv_dir, all_images)
             fold_predictions.append(predictions)
 
+            # Create test set submission for this fold
+            print(f"🔄 Creating test set submission for fold {fold_idx}...")
+            test_submission_path = experiment_dir / f"submission_fold_{fold_idx}.json"
+
+            result = subprocess.run([
+                'uv', 'run', 'scripts/inference_yolo.py',
+                str(model_path),
+                '-o', str(test_submission_path)
+            ], capture_output=True, text=True)
+
+            if result.returncode == 0:
+                print(f"✅ Test submission saved: {test_submission_path}")
+            else:
+                print(f"❌ Failed to create test submission for fold {fold_idx}: {result.stderr}")
+
         except Exception as e:
             print(f"❌ Error in fold {fold_idx}: {e}")
             # Continue with other folds
@@ -300,6 +315,14 @@ def train_with_wandb_cv():
     print(f"✅ Cross-validation completed!")
     print(f"📁 Combined submission saved: {submission_path}")
     print(f"📂 Full experiment at: {experiment_dir}")
+
+    # List all per-fold test submissions
+    test_submissions = list(experiment_dir.glob("submission_fold_*.json"))
+    if test_submissions:
+        print(f"🎯 Per-fold test submissions created:")
+        for sub_path in sorted(test_submissions):
+            print(f"   - {sub_path.name}")
+        print(f"   Total: {len(test_submissions)} submission files ready for leaderboard testing")
 
     # Run custom evaluation on combined submission
     print("🔄 Running custom evaluation on combined submission...")

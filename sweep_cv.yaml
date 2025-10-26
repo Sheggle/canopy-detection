@@ -6,7 +6,7 @@ metric:
   name: custom_evaluation_score
 parameters:
   epochs:
-    value: 30
+    value: 2
   imgsz:
     value: 640
   n_folds:
