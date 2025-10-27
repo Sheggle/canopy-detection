@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 import numpy as np
 from shapely.geometry import Polygon
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # Scoring weights as defined by organizers
@@ -213,7 +216,7 @@ def compute_map(gt_polygons: List[Polygon],
     Returns:
         mAP score
     """
-    iou_threshold = 0.75
+    iou_threshold = os.getenv("IOU_THRESHOLD")
     bbox_prefilter_threshold = 0.1  # Pre-filter threshold for bbox IoU
 
     if not gt_polygons:

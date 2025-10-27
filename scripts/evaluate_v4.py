@@ -31,7 +31,7 @@ OPTIMIZATION 4: Spatial indexing (R-tree)
 
 Total expected speedup: ~400-1600x (from ~3 minutes to ~0.1-0.5 seconds)
 """
-
+import os
 import argparse
 import json
 from pathlib import Path
@@ -41,6 +41,9 @@ from shapely.geometry import Polygon
 import multiprocessing as mp
 from functools import partial
 from rtree import index
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 # Scoring weights as defined by organizers
@@ -235,7 +238,7 @@ def compute_map_rtree(gt_polygons: List[Polygon],
     Returns:
         mAP score
     """
-    iou_threshold = 0.75
+    iou_threshold = float(os.getenv("IOU_THRESHOLD"))
     bbox_prefilter_threshold = 0.1  # Pre-filter threshold for bbox IoU
     rtree_expansion = 0.20  # Expand search area by 20% for R-tree queries to ensure no missed candidates
 

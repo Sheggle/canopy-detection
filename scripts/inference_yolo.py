@@ -28,7 +28,7 @@ def main():
     print(f"🔄 Running inference on {len(sample_data['images'])} images...")
     for img_info in tqdm(sample_data["images"], desc="Processing images", unit="img"):
         image_path = Path("data/evaluation_images") / img_info["file_name"]
-        results = model(str(image_path), conf=0.01, verbose=False)
+        results = model(str(image_path), conf=0.01, verbose=False, iou=0.1)
 
         annotations = []
         for result in results:

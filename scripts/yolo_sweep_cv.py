@@ -5,7 +5,7 @@ YOLO cross-validation sweep script with wandb integration.
 Performs k-fold cross-validation training and combines predictions from all folds
 into a single submission.json file.
 """
-
+import shutil
 import wandb
 import json
 import subprocess
@@ -331,6 +331,9 @@ def train_with_wandb_cv():
     # Log the custom evaluation score for optimization
     wandb.log({"custom_evaluation_score": custom_score})
     print(f"📊 Final custom evaluation score: {custom_score:.6f}")
+
+    if custom_score < 0.25:
+        shutil.rmtree(experiment_dir)
 
     # Finish wandb run
     wandb.finish()

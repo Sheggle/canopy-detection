@@ -268,7 +268,7 @@ def main():
 
     # Create output directory
     output_dir.mkdir(exist_ok=True)
-    print(f"Creating cross-validation dataset in: {output_dir.absolute()}")
+    print(f"Creating cross-validation dataset in: {output_dir}")
 
     # Create k folds
     folds = create_k_folds(images, n_folds)
@@ -278,7 +278,7 @@ def main():
         create_fold_dataset(fold_idx, folds, output_dir, data_dir, class_mapping)
 
     print(f"\n✅ Cross-validation dataset creation completed!")
-    print(f"📁 Output directory: {output_dir.absolute()}")
+    print(f"📁 Output directory: {output_dir}")
     print(f"📊 {n_folds} folds created with leave-one-out validation")
     print(f"🏷️  Classes: {list(class_mapping.keys())}")
 
