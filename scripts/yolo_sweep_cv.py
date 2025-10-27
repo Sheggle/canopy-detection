@@ -13,6 +13,11 @@ from pathlib import Path
 from ultralytics import YOLO
 import torch
 import time
+import sys
+
+# Add scripts directory to path to import inference_yolo
+sys.path.append(str(Path(__file__).parent))
+from inference_yolo import run_yolo_inference
 
 
 def create_cv_dataset_if_needed(n_folds: int) -> Path:
@@ -109,23 +114,17 @@ def train_fold(fold_idx: int, cv_dir: Path, config, experiment_dir: Path) -> Pat
 
 def run_inference_on_fold_val(model_path: Path, fold_idx: int, cv_dir: Path, all_images: list) -> dict:
     """
-    Run inference on the validation set of a specific fold.
+    Run inference on the validation set of a specific fold using inference_yolo.py functionality.
 
     Returns:
         Dictionary mapping image filenames to prediction lists
     """
-    # Load trained model
-    model = YOLO(str(model_path))
-
-    # Class mapping
-    class_names = {0: "individual_tree", 1: "group_of_trees"}
-
     # Get validation images for this fold
     val_images_dir = cv_dir / f"fold_{fold_idx}" / "val" / "images"
     val_image_files = list(val_images_dir.glob("*.tif"))
 
-    predictions = {}
-
+    # Create image info list for the validation images in this fold
+    val_images_info = []
     for image_path in val_image_files:
         file_name = image_path.name
 
@@ -133,39 +132,35 @@ def run_inference_on_fold_val(model_path: Path, fold_idx: int, cv_dir: Path, all
         img_info = None
         for img in all_images:
             if img["file_name"] == file_name:
-                img_info = img
+                img_info = img.copy()  # Copy to avoid modifying original
+                img_info["image_path"] = str(image_path)  # Add explicit path
                 break
 
-        if img_info is None:
-            continue
+        if img_info is not None:
+            val_images_info.append(img_info)
 
-        # Run inference
-        results = model(str(image_path), conf=0.01, verbose=False)
+    if not val_images_info:
+        return {}
 
-        annotations = []
-        for result in results:
-            if result.masks is not None and result.boxes is not None:
-                for i in range(len(result.boxes)):
-                    confidence = float(result.boxes.conf[i])
-                    class_id = int(result.boxes.cls[i])
+    # Use inference_yolo.py functionality with the validation images
+    results = run_yolo_inference(
+        model_path=str(model_path),
+        images_source=val_images_info,
+        conf=0.01,
+        verbose=False
+    )
 
-                    if hasattr(result.masks, 'xy') and i < len(result.masks.xy):
-                        coords = result.masks.xy[i].flatten().tolist()
-                        segmentation = [int(round(c)) for c in coords]
-
-                        annotations.append({
-                            "class": class_names.get(class_id, f"class_{class_id}"),
-                            "confidence_score": round(confidence, 2),
-                            "segmentation": segmentation
-                        })
-
+    # Convert results to the expected format (dict mapping filenames to predictions)
+    predictions = {}
+    for result in results:
+        file_name = result["file_name"]
         predictions[file_name] = {
-            "annotations": annotations,
+            "annotations": result["annotations"],
             "metadata": {
-                "width": img_info["width"],
-                "height": img_info["height"],
-                "cm_resolution": img_info["cm_resolution"],
-                "scene_type": img_info["scene_type"]
+                "width": result["width"],
+                "height": result["height"],
+                "cm_resolution": result["cm_resolution"],
+                "scene_type": result["scene_type"]
             }
         }
 
