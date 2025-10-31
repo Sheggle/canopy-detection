@@ -60,7 +60,7 @@ def run_yolo_inference(model_path, images_source, conf=0.01, iou=0.1, verbose=Fa
             # Assume path is provided in img_info or use default
             image_path = Path("data/evaluation_images") / img_info["file_name"]
 
-        results = model(str(image_path), conf=conf, verbose=verbose, iou=iou)
+        results = model(str(image_path), conf=conf, verbose=verbose, iou=iou, max_det=3000)
 
         annotations = []
         for result in results:

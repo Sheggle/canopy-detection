@@ -9,7 +9,7 @@ import numpy as np
 from pathlib import Path
 
 # Load submission data
-with open("submission.json") as f:
+with open("experiments/cv_sweep_linu8cjt/submission.json") as f:
     submission = json.load(f)
 
 # Create output directory
@@ -25,7 +25,7 @@ colors = {
 # Process each image
 for img_info in submission["images"]:
     # Load image
-    image_path = Path("data/evaluation_images") / img_info["file_name"]
+    image_path = Path("data/train_images") / img_info["file_name"]
     img = cv2.imread(str(image_path))
 
     # Create overlay for 50% transparency

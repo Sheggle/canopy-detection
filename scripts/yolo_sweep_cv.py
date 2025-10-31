@@ -5,6 +5,7 @@ YOLO cross-validation sweep script with wandb integration.
 Performs k-fold cross-validation training and combines predictions from all folds
 into a single submission.json file.
 """
+from re import I
 import shutil
 import wandb
 import json
@@ -14,6 +15,7 @@ from ultralytics import YOLO
 import torch
 import time
 import sys
+import os
 
 # Add scripts directory to path to import inference_yolo
 sys.path.append(str(Path(__file__).parent))
@@ -97,7 +99,7 @@ def train_fold(fold_idx: int, cv_dir: Path, config, experiment_dir: Path) -> Pat
         fliplr=0.5,
 
         # Training settings
-        patience=10,  # Reduced for CV
+        patience=config.epochs,  # Reduced for CV
         save_period=-1,
         val=True,
         verbose=False
@@ -327,7 +329,12 @@ def train_with_wandb_cv():
     wandb.log({"custom_evaluation_score": custom_score})
     print(f"📊 Final custom evaluation score: {custom_score:.6f}")
 
-    if custom_score < 0.25:
+    for i in range(n_folds):
+        path = experiment_dir / f"fold_{i}" / "run" / "weights" / "best.pt"
+        if os.path.exists(path):   
+            os.remove(path)
+
+    if custom_score < 0.2:
         shutil.rmtree(experiment_dir)
 
     # Finish wandb run
